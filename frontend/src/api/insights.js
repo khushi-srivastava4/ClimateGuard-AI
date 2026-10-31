@@ -1,11 +1,20 @@
-const BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:8000"
+).replace(/\/+$/, "");
 
+export function apiUrl(path) {
+  return `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
+}
 export async function call(path, opts = {}, timeoutMs = 90000) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const r = await fetch(BASE + path, { ...opts, signal: ctl.signal });
-    const text = await r.text();
+  const r = await fetch(apiUrl(path), {
+    ...opts,
+    signal: ctl.signal,
+  });    
+  const text = await r.text();
     let j = {};
     try { j = text ? JSON.parse(text) : {}; } catch { /* non-JSON error body */ }
     if (!r.ok) {
