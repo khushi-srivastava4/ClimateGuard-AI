@@ -5,3 +5,11 @@
 .env
 .venv/
 __pycache__/
+
+node_modules/
+dist/
+*.db
+*.sqlite3
+backend/data/
+.pytest_cache/
+.vscode/
