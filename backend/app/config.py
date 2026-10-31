@@ -17,6 +17,9 @@ class Settings:
     def __init__(self) -> None:
         self.APP_NAME = os.getenv("APP_NAME", "ClimateGuard AI")
         self.ENV = os.getenv("ENV", "development")
+        default_data_dir = Path(__file__).resolve().parents[1] / "data"
+        configured_data_dir = os.getenv("DATA_DIR", "").strip() or str(default_data_dir)
+        self.DATA_DIR = Path(configured_data_dir).expanduser().resolve()
         self.CORS_ORIGINS: List[str] = [
             item.strip()
             for item in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
@@ -28,10 +31,27 @@ class Settings:
         self.MANDI_API_KEY = os.getenv("MANDI_API_KEY", "")
         self.GNANI_API_KEY = os.getenv("GNANI_API_KEY", "")
         self.SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
-        self.MANDI_RESOURCE_ID = os.getenv(
-            "MANDI_RESOURCE_ID", "9ef84268-d588-465a-a308-a864a43d0070"
+        self.MANDI_RESOURCE_ID = (
+            os.getenv("MANDI_RESOURCE_ID", "").strip()
+            or "9ef84268-d588-465a-a308-a864a43d0070"
         )
-        self.LLM_PROVIDER = os.getenv("LLM_PROVIDER", "OPENAI").upper()
+        self.MANDI_CACHE = os.getenv("MANDI_CACHE", "")
+        self.HTTP_USER_AGENT = os.getenv("HTTP_USER_AGENT", "KavachHackathon/1.0")
+        self.OPS_DB = os.getenv("OPS_DB", "")
+        self.OSRM_URL = os.getenv("OSRM_URL", "https://router.project-osrm.org")
+        self.RELIEF_AUTOPILOT_MINUTES = float(os.getenv("RELIEF_AUTOPILOT_MINUTES", "0") or 0)
+        self.RELIEF_MIN_LEVEL = os.getenv("RELIEF_MIN_LEVEL", "high")
+        self.ALLOWED_SUPPLIER_HOSTS = [
+            item.strip().lower().rstrip(".")
+            for item in os.getenv("ALLOWED_SUPPLIER_HOSTS", "").split(",")
+            if item.strip()
+        ]
+        self.ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
+        self.RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MIN", "120"))
+        self.RATE_LIMIT_HEAVY_PER_MIN = int(os.getenv("RATE_LIMIT_HEAVY_PER_MIN", "20"))
+        self.TRUST_PROXY = os.getenv("TRUST_PROXY", "0").strip() == "1"
+        self.MAX_REQUEST_BODY_BYTES = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(1024 * 1024)))
+        self.LLM_PROVIDER = os.getenv("LLM_PROVIDER", "GEMINI").upper()
         self.LLM_API_KEY = os.getenv("LLM_API_KEY", "")
         default_model = {
             "OPENAI": "gpt-4o-mini",

@@ -7,11 +7,11 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+from app.config import settings
+
 DatabasePath = str | Path | None
 
-DEFAULT_DATABASE_PATH = (
-    Path(__file__).resolve().parents[2] / "data" / "climateguard.sqlite3"
-)
+DEFAULT_DATABASE_PATH = settings.DATA_DIR / "climateguard.sqlite3"
 
 _SCHEMA = (
     """

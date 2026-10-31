@@ -13,6 +13,8 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from app.config import settings
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS docs (kind TEXT NOT NULL, id TEXT NOT NULL, body TEXT NOT NULL, updated REAL NOT NULL, PRIMARY KEY(kind, id));
 CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, ref TEXT, ts REAL NOT NULL, body TEXT NOT NULL);
@@ -21,7 +23,12 @@ CREATE INDEX IF NOT EXISTS ev_kind ON events(kind, ref, ts);
 
 
 def _path() -> Path:
-    return Path(os.getenv("OPS_DB") or Path(__file__).resolve().parents[2] / "data" / "ops.sqlite3")
+    configured_ops_db = os.getenv("OPS_DB", settings.OPS_DB).strip()
+    return (
+        Path(configured_ops_db).expanduser().resolve()
+        if configured_ops_db
+        else settings.DATA_DIR / "ops.sqlite3"
+    )
 
 
 def _conn() -> sqlite3.Connection:

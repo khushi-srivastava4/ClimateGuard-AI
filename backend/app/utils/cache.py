@@ -8,12 +8,14 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+from app.config import settings
+
 
 class SQLiteCache:
     """Small SQLite-backed cache for API responses."""
 
-    def __init__(self, db_path: str = "cache.db", ttl_seconds: int = 3600) -> None:
-        self.db_path = Path(db_path)
+    def __init__(self, db_path: str | Path | None = None, ttl_seconds: int = 3600) -> None:
+        self.db_path = Path(db_path) if db_path is not None else settings.DATA_DIR / "cache.db"
         self.ttl_seconds = ttl_seconds
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize()
@@ -65,4 +67,4 @@ class SQLiteCache:
             connection.commit()
 
 
-cache = SQLiteCache(db_path="./cache.db", ttl_seconds=3600)
+cache = SQLiteCache(ttl_seconds=settings.CACHE_TTL)

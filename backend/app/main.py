@@ -7,7 +7,9 @@ import logging
 from dataclasses import asdict
 from datetime import date, timedelta
 from enum import Enum
+from contextlib import asynccontextmanager
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +22,7 @@ from app.models.mandi import MandiData, MandiPricePoint
 from app.models.risk import RiskReport
 from app.models.soil import SoilData
 from app.models.weather import WeatherData
+from app.middleware import SecurityMiddleware
 from app.routers.ops import router as ops_router
 from app.persistence import (
     ActionStatus,
@@ -44,6 +47,35 @@ from app.routers.voice import router as voice_router
 from app.services.field_planner import build_field_plan
 
 logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    settings.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if settings.ENV.lower() == "production":
+        local_hosts = {"localhost", "127.0.0.1", "::1"}
+        if settings.CORS_ORIGINS and all(
+            urlsplit(origin).hostname in local_hosts
+            for origin in settings.CORS_ORIGINS
+        ):
+            logger.warning(
+                "Production CORS_ORIGINS only allows localhost; configure the deployed frontend origin."
+            )
+        llm_present = any(
+            (
+                settings.LLM_API_KEY,
+                settings.BACKUP_OPENAI_API_KEY,
+                settings.BACKUP_ANTHROPIC_API_KEY,
+                settings.BACKUP_GROQ_API_KEY,
+                settings.BACKUP_GEMINI_API_KEY,
+            )
+        )
+        logger.info(
+            "Production provider credentials: LLM=%s MANDI=%s GNANI=%s",
+            "present" if llm_present else "missing",
+            "present" if settings.MANDI_API_KEY else "missing",
+            "present" if settings.GNANI_API_KEY else "missing",
+        )
+    yield
 
 
 class AdvisoryRequest(BaseModel):
@@ -124,7 +156,17 @@ class AlertPreference(BaseModel):
     threshold: int = Field(default=70, ge=1, le=100)
 
 
-app = FastAPI(title="ClimateGuard AI")
+app = FastAPI(title="ClimateGuard AI", lifespan=lifespan)
+if "*" in settings.CORS_ORIGINS:
+    raise ValueError("CORS_ORIGINS must not contain '*' while credentialed CORS is enabled.")
+app.add_middleware(
+    SecurityMiddleware,
+    requests_per_minute=settings.RATE_LIMIT_PER_MIN,
+    heavy_requests_per_minute=settings.RATE_LIMIT_HEAVY_PER_MIN,
+    max_request_body_bytes=settings.MAX_REQUEST_BODY_BYTES,
+    admin_token=settings.ADMIN_TOKEN,
+    trust_proxy=settings.TRUST_PROXY,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -137,7 +179,14 @@ app.add_middleware(
 app.include_router(insights_router)   # /insights/risk, /insights/grid, /satellite/ndvi, /advise/v2
 app.include_router(ops_router)
 app.include_router(voice_router)
-    
+
+
+@app.exception_handler(Exception)
+async def internal_error_handler(_request: Request, _error: Exception) -> JSONResponse:
+    logger.exception("Unhandled backend exception")
+    return JSONResponse(status_code=500, content={"detail": "Internal server error."})
+
+
 @app.exception_handler(NotFoundError)
 async def not_found_handler(_request: Request, error: NotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(error)})

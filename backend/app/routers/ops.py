@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import re
 import time
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from app.config import settings
 from app.routers.insights import build
+from app.security import (
+    SupplierURLValidationError,
+    validate_supplier_url,
+)
 from app.services import advisory_service, gridctl, ops_store as S, swarm, translation_service, validation
 from app.services.live_data import SourceError
 
@@ -144,6 +148,13 @@ class Supplier(BaseModel):
     webhook_url: str | None = Field(default=None, description="POST endpoint that receives the dispatch order")
     stock: list[StockRow] = Field(default_factory=list, description="used only when no inventory_url is given")
 
+    @model_validator(mode="after")
+    def validate_endpoints(self) -> "Supplier":
+        for endpoint in (self.inventory_url, self.webhook_url):
+            if endpoint:
+                validate_supplier_url(endpoint)
+        return self
+
 
 class VehicleTelemetry(BaseModel):
     vehicle_id: str = Field(min_length=1, max_length=40)
@@ -205,7 +216,10 @@ async def hazards() -> List[Dict[str, Any]]:
 
 @router.post("/relief/run")
 async def relief_run(req: RunRequest) -> Dict[str, Any]:
-    return await swarm.run_cycle(req.min_level, req.dry_run)
+    try:
+        return await swarm.run_cycle(req.min_level, req.dry_run)
+    except SupplierURLValidationError as exc:
+        raise HTTPException(400, str(exc)) from None
 
 
 @router.get("/relief/runs")
@@ -241,16 +255,16 @@ _autopilot: Optional[asyncio.Task] = None
 def start_autopilot() -> None:
     """Set RELIEF_AUTOPILOT_MINUTES=15 to let the agent run on its own; otherwise it only runs when asked."""
     global _autopilot
-    minutes = float(os.getenv("RELIEF_AUTOPILOT_MINUTES", "0") or 0)
+    minutes = settings.RELIEF_AUTOPILOT_MINUTES
     if minutes <= 0 or _autopilot:
         return
 
     async def loop() -> None:
         while True:
             try:
-                await swarm.run_cycle(os.getenv("RELIEF_MIN_LEVEL", "high"))
+                await swarm.run_cycle(settings.RELIEF_MIN_LEVEL)
             except Exception:
-                pass
+                logger.exception("Relief autopilot cycle failed")
             await asyncio.sleep(minutes * 60)
 
     _autopilot = asyncio.get_event_loop().create_task(loop())

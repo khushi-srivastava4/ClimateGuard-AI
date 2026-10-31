@@ -14,17 +14,22 @@ from __future__ import annotations
 
 import asyncio
 import math
-import os
 import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
+from app.config import settings
+from app.security import (
+    SupplierURLValidationError,
+    fetch_supplier_response,
+    parse_supplier_json,
+)
 from app.services import ops_store as S
 from app.services import live_data as L
 
-OSRM_URL = os.getenv("OSRM_URL", "https://router.project-osrm.org")
+OSRM_URL = settings.OSRM_URL
 LEVELS = {"none": 0, "watch": 1, "high": 2, "severe": 3}
 
 
@@ -153,10 +158,14 @@ def _norm_stock(payload: Any) -> Dict[str, float]:
 async def supplier_stock(sup: Dict[str, Any]) -> Tuple[Dict[str, float], str]:
     if sup.get("inventory_url"):
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(15, connect=6)) as c:
-                r = await c.get(sup["inventory_url"], headers=sup.get("inventory_headers") or {})
-                r.raise_for_status()
-                return _norm_stock(r.json()), "live inventory API"
+            _, body = await fetch_supplier_response(
+                "GET",
+                sup["inventory_url"],
+                headers=sup.get("inventory_headers") or {},
+            )
+            return _norm_stock(parse_supplier_json(body)), "live inventory API"
+        except SupplierURLValidationError:
+            raise
         except Exception as e:
             return {}, f"inventory API failed ({type(e).__name__})"
     return _norm_stock(sup.get("stock") or []), "manually maintained stock"
@@ -167,12 +176,18 @@ async def send_webhook(sup: Dict[str, Any], order: Dict[str, Any]) -> str:
         return "ready_to_dispatch (no webhook configured for this supplier)"
     for attempt in range(2):
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(15, connect=6)) as c:
-                r = await c.post(sup["webhook_url"], json=order, headers=sup.get("webhook_headers") or {})
-            if r.status_code < 300:
+            status, _ = await fetch_supplier_response(
+                "POST",
+                sup["webhook_url"],
+                json_body=order,
+                headers=sup.get("webhook_headers") or {},
+            )
+            if status < 300:
                 return "dispatched"
-            if r.status_code < 500:
-                return f"dispatch_rejected (HTTP {r.status_code})"
+            if status < 500:
+                return f"dispatch_rejected (HTTP {status})"
+        except SupplierURLValidationError:
+            raise
         except Exception:
             pass
         await asyncio.sleep(1 + attempt)

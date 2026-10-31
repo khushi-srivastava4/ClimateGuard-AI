@@ -1,13 +1,17 @@
 """Agmarknet mandi summary for /insights/risk. Fixes ReadTimeout: long read timeout, retries, and a disk cache that is
 served (clearly labelled stale) when the portal is slow. Never invents a price."""
-import json, os, time
+import json, time
 from app.config import settings
 from pathlib import Path
 import httpx
 from .live_data import fetch, SourceError
 
 URL = "https://api.data.gov.in/resource/" + settings.MANDI_RESOURCE_ID
-CACHE = Path(os.getenv("MANDI_CACHE", Path(__file__).resolve().parents[2] / "data" / "mandi_cache.json"))
+CACHE = (
+    Path(settings.MANDI_CACHE).expanduser().resolve()
+    if settings.MANDI_CACHE
+    else settings.DATA_DIR / "mandi_cache.json"
+)
 
 
 def _load():

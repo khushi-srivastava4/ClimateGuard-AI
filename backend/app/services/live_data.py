@@ -1,8 +1,9 @@
 """Live data connectors. Every function hits a real API; none return canned data.
 Resilience: retries with backoff, TTL cache, stale-cache fallback (flagged), per-source status."""
-import asyncio, os, re, time
+import asyncio, re, time
 import httpx
 
+from app.config import settings
 
 class SourceError(Exception):
     def __init__(self, source, msg):
@@ -19,7 +20,7 @@ def _http():
     global _client
     if _client is None:
         _client = httpx.AsyncClient(
-            headers={"User-Agent": os.getenv("HTTP_USER_AGENT", "KavachHackathon/1.0")},
+            headers={"User-Agent": settings.HTTP_USER_AGENT},
             follow_redirects=True)
     return _client
 
