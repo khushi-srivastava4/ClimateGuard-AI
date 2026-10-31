@@ -1,0 +1,64 @@
+services:
+  - type: web
+    name: climateguard-backend
+    runtime: docker
+    # Persistent disks require a paid plan; free instances have ephemeral storage.
+    plan: standard
+    region: oregon # Change to the closest supported region for your users.
+    branch: main
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    autoDeploy: true
+    healthCheckPath: /health
+    disk:
+      name: climateguard-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: LLM_PROVIDER
+        value: GEMINI
+      - key: LLM_MODEL
+        value: gemini-2.5-flash
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: CORS_ORIGINS
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: MANDI_API_KEY
+        sync: false
+      - key: GNANI_API_KEY
+        sync: false
+      - key: SARVAM_API_KEY
+        sync: false
+      - key: ALLOWED_SUPPLIER_HOSTS
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: RATE_LIMIT_PER_MIN
+        value: "120"
+      - key: RATE_LIMIT_HEAVY_PER_MIN
+        value: "20"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: MAX_REQUEST_BODY_BYTES
+        value: "1048576"
+      - key: OPS_DB
+        value: /var/data/ops.sqlite3
+      - key: RELIEF_AUTOPILOT_MINUTES
+        value: "0"
+      - key: RELIEF_MIN_LEVEL
+        value: high
