@@ -1,0 +1,56 @@
+"""SQLite-backed local persistence for farms, action plans, and alerts."""
+
+from .database import DEFAULT_DATABASE_PATH, initialize_database
+from .models import (
+    ActionPlanItem,
+    ActionStatus,
+    AlertRecord,
+    Farm,
+    FarmUpdate,
+    InvalidTransitionError,
+    NotFoundError,
+    PersistenceValidationError,
+)
+from .services import (
+    create_action_item,
+    create_alert,
+    create_farm,
+    delete_action_item,
+    delete_farm,
+    get_action_item,
+    get_alert,
+    get_farm,
+    list_action_items,
+    list_alerts,
+    list_farms,
+    mark_alert_read,
+    update_action_status,
+    update_farm,
+)
+
+__all__ = [
+    "DEFAULT_DATABASE_PATH",
+    "ActionPlanItem",
+    "ActionStatus",
+    "AlertRecord",
+    "Farm",
+    "FarmUpdate",
+    "InvalidTransitionError",
+    "NotFoundError",
+    "PersistenceValidationError",
+    "create_action_item",
+    "create_alert",
+    "create_farm",
+    "delete_action_item",
+    "delete_farm",
+    "get_action_item",
+    "get_alert",
+    "get_farm",
+    "initialize_database",
+    "list_action_items",
+    "list_alerts",
+    "list_farms",
+    "mark_alert_read",
+    "update_action_status",
+    "update_farm",
+]

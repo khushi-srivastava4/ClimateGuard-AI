@@ -1,0 +1,251 @@
+.cg-map { height: 380px; width: 100%; border-radius: 8px; overflow: hidden; background: #dfe7e3; }
+.cg-panel { border: 1px solid #d5ddd9; border-radius: 8px; padding: 12px 14px; margin-top: 12px; background: #fff; }
+.cg-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.cg-row b { width: 150px; font-weight: 600; }
+.cg-bar { flex: 1; height: 10px; background: #e8eeeb; border-radius: 5px; overflow: hidden; }
+.cg-bar i { display: block; height: 100%; }
+.cg-badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; border: 1px solid currentColor; }
+.cg-muted { color: #5b6b65; font-size: 13px; }
+.cg-ev { margin: 2px 0 0 160px; }
+
+.dashboard-shell .cg-panel {
+  margin-top: 0;
+  border-color: #d3dac5;
+  border-radius: 20px;
+  padding: 18px;
+  color: #2b4031;
+  background:
+    radial-gradient(ellipse at 100% 0, rgba(210, 222, 192, .32), transparent 58%),
+    linear-gradient(145deg, #eef0e3, #e6e9d9);
+  box-shadow: 0 12px 30px rgba(49, 65, 43, .07), 0 2px 6px rgba(49, 65, 43, .035);
+}
+
+.dashboard-shell .cg-panel h3 {
+  color: #263d2d;
+  letter-spacing: -.025em;
+}
+
+.dashboard-shell .cg-panel .cg-muted {
+  color: #697662;
+}
+
+.dashboard-shell .cg-panel .cg-bar {
+  background: #d8dfd1;
+}
+
+.dashboard-shell .cg-panel .cg-badge {
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: rgba(255, 255, 255, .34);
+}
+
+.dashboard-shell .cg-panel button {
+  margin-top: 6px;
+  border: 1px solid #cbd6c0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: #456341;
+  background: #e2e8d8;
+  font-weight: 600;
+}
+
+.dashboard-shell .cg-panel button:hover:not(:disabled) {
+  border-color: #aaba9d;
+  background: #dce5d2;
+}
+
+.dashboard-shell .cg-panel button:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+
+.dashboard-shell section.assistant-context-card,
+.dashboard-shell section.assistant-chat-card {
+  border-color: #d7ddcb;
+  background: linear-gradient(145deg, #fbfbf4, #f1f3e8);
+}
+
+.dashboard-shell section.assistant-chat-card {
+  box-shadow: 0 16px 38px rgba(44, 67, 44, .09), 0 3px 9px rgba(44, 67, 44, .04);
+}
+
+.dashboard-shell div.assistant-conversation {
+  border-color: #dce3d3 !important;
+  background:
+    radial-gradient(ellipse at 100% 0, rgba(216, 228, 202, .42), transparent 55%),
+    linear-gradient(155deg, #fbfcf7, #f0f3e9) !important;
+  box-shadow: inset 0 1px 3px rgba(57, 75, 48, .04);
+  scrollbar-color: #c2cfb7 transparent;
+  scrollbar-width: thin;
+}
+
+.dashboard-shell .assistant-empty-state {
+  color: #687760 !important;
+}
+
+.dashboard-shell .assistant-empty-state > p {
+  margin-bottom: .75rem;
+  color: #304b35;
+  font-weight: 650;
+}
+
+.dashboard-shell .assistant-suggestion {
+  border-color: #d3ddc8;
+  color: #456341 !important;
+  background: rgba(255, 255, 255, .76);
+}
+
+.dashboard-shell .assistant-suggestion:hover {
+  border-color: #9db58b;
+  background: #edf4e7;
+}
+
+.dashboard-shell .assistant-message {
+  max-width: 90%;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: 0 3px 10px rgba(40, 58, 38, .055);
+}
+
+.dashboard-shell .assistant-message-user {
+  border-color: #3c6347;
+  color: #f7fbf2 !important;
+  background: linear-gradient(135deg, #355c42, #47724d);
+}
+
+.dashboard-shell .assistant-message-bot {
+  border-color: #dce5d2;
+  color: #2d4331 !important;
+  background: rgba(255, 255, 255, .88);
+}
+
+.dashboard-shell .assistant-message-content {
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-shell .assistant-message-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  color: #74816d !important;
+}
+
+.dashboard-shell .assistant-message-user .assistant-message-meta {
+  color: #d5e4d0 !important;
+}
+
+.dashboard-shell .assistant-listen-button {
+  border-color: #d4dfca;
+  color: #44613f !important;
+  background: #f7faf3;
+}
+
+.dashboard-shell .assistant-thinking {
+  color: #65775c !important;
+}
+
+.dashboard-shell .assistant-thinking::before {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #6f945b;
+  content: "";
+  vertical-align: 1px;
+  animation: assistant-pulse 1.2s ease-in-out infinite;
+}
+
+.dashboard-shell .assistant-composer {
+  align-items: stretch;
+}
+
+.dashboard-shell .assistant-input {
+  min-width: 0;
+  border-color: #d5dfcb !important;
+  border-radius: 12px;
+  color: #2d4331 !important;
+  background: #fff !important;
+  box-shadow: 0 2px 7px rgba(48, 65, 43, .04);
+}
+
+.dashboard-shell .assistant-input::placeholder {
+  color: #87917f !important;
+}
+
+.dashboard-shell .assistant-voice-button {
+  border-color: #d4deca;
+  color: #42613f !important;
+  background: #f8faf4;
+  font-weight: 600;
+}
+
+.dashboard-shell .assistant-voice-button:hover,
+.dashboard-shell .assistant-voice-button.is-listening {
+  border-color: #9bb68a;
+  color: #355b3d !important;
+  background: #e8f1e1;
+}
+
+.dashboard-shell .assistant-send-button {
+  border-radius: 11px;
+  color: #fff !important;
+  background: linear-gradient(135deg, #47794a, #315d3d) !important;
+  box-shadow: 0 4px 11px rgba(52, 94, 60, .2);
+}
+
+.dashboard-shell .assistant-send-button:hover {
+  background: linear-gradient(135deg, #3e6e42, #284f34) !important;
+  box-shadow: 0 6px 15px rgba(52, 94, 60, .25);
+}
+
+.dashboard-shell .assistant-read-aloud {
+  color: #66745f !important;
+  cursor: pointer;
+}
+
+.dashboard-shell .assistant-read-aloud input {
+  width: 15px;
+  height: 15px;
+  accent-color: #527b45;
+  cursor: pointer;
+}
+
+.dashboard-shell .assistant-error:not(:empty) {
+  margin-top: .75rem;
+}
+
+.dashboard-shell .assistant-error p {
+  border-color: #e6d3aa;
+  color: #745a2e;
+  background: #fbf4e5;
+}
+
+@keyframes assistant-pulse {
+  50% { opacity: .38; transform: scale(.78); }
+}
+
+@media (max-width: 640px) {
+  .dashboard-shell .assistant-message {
+    max-width: 96%;
+  }
+
+  .dashboard-shell .assistant-message-user {
+    margin-left: .5rem;
+  }
+
+  .dashboard-shell .assistant-message-bot {
+    margin-right: .5rem;
+  }
+
+  .dashboard-shell .assistant-composer {
+    flex-wrap: wrap;
+  }
+
+  .dashboard-shell .assistant-input {
+    flex-basis: 100%;
+  }
+}
