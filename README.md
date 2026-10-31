@@ -114,7 +114,7 @@ Design principles:
 Copy-Item .env.example .env          # then open .env and add your keys
 Set-Location .\backend
 python -m venv ..\.venv ; ..\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 python -m uvicorn app.main:app --reload
 ```
 
@@ -123,7 +123,7 @@ macOS / Linux:
 ```bash
 cp .env.example .env
 cd backend && python3.11 -m venv ../.venv && source ../.venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
 ```
 
@@ -133,21 +133,31 @@ API docs: <http://localhost:8000/docs>
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev          # http://localhost:5173
 ```
 
 If the backend is not on `http://localhost:8000`, set `VITE_API_BASE_URL` (for example in `frontend/.env`). One variable controls every tab.
 
-### 4.3 Docker
+### 4.3 Docker development
 
 ```bash
 docker compose up --build
 ```
 
-Backend on 8000, frontend on 5173. Both read `.env`. Database files are written under `backend/data/` (mounted from your folder, so they survive restarts).
+This is the development setup: backend hot reload and Vite dev server with source mounts. Backend runs on 8000 and frontend on 5173. Database files are written under `backend/data/` through the source mount.
 
-### 4.4 First checks
+### 4.4 Production Docker Compose
+
+```powershell
+Copy-Item .env.example .env
+# Add only the provider credentials you intend to use.
+docker compose -f docker-compose.prod.yml up --build
+```
+
+The production frontend is served by Nginx on port 8080 and the API on 8000. Set `VITE_API_BASE_URL` before building if the browser reaches the API through a different origin. Persistent backend files use the named `backend-data` volume. Render/Vercel deployment instructions are in [DEPLOY.md](./DEPLOY.md).
+
+### 4.5 First checks
 
 1. Open `/health`: should return OK.
 2. **Climate & yield risk** tab: click the map, press *Analyze*. Forecast, risk bars and the source-health line at the bottom of the risk card confirm which providers answered (`live`, `stale`, `unavailable`).
@@ -162,25 +172,33 @@ Copy `.env.example` to `.env`. Never commit `.env`.
 | Variable | Default | Purpose |
 |---|---|---|
 | `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Allowed browser origins |
-| `CACHE_TTL` | `3600` | Seconds to cache provider responses (SQLite `cache.db`) |
+| `DATA_DIR` | `backend/data` | Root directory for SQLite databases and disk caches |
+| `CACHE_TTL` | `3600` | Seconds to cache provider responses (`DATA_DIR/cache.db`) |
 | `HTTP_TIMEOUT` | `20` | Base provider timeout (fast providers are capped lower, slow portals get up to 28 s read) |
 | `ADVISE_TIMEOUT` | `80` | Overall limit for one `/advise` run |
 | `MANDI_API_KEY` | – | data.gov.in key for mandi prices |
 | `MANDI_RESOURCE_ID` | Agmarknet daily-price resource | Override only if data.gov.in changes the resource |
-| `LLM_PROVIDER` | `GEMINI` | `GEMINI`, `ANTHROPIC`, `GROQ` or OpenAI-compatible (with `LLM_BASE_URL`) |
+| `LLM_PROVIDER` | `GEMINI` | Primary LLM provider; matches the config default and preserves the existing Gemini-first setup |
 | `LLM_API_KEY` / `LLM_MODEL` | – / `gemini-2.5-flash` | Primary model |
 | `LLM_BASE_URL` | – | For OpenAI-compatible servers (for example local Ollama) |
 | `LLM_CONNECT_TIMEOUT`, `LLM_READ_TIMEOUT`, `LLM_WRITE_TIMEOUT`, `LLM_POOL_TIMEOUT` | `10`, `60`, `10`, `5` | LLM timeouts (read is capped at 15 s per call by design) |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | – / `gpt-4o-mini` | Optional OpenAI backup and model |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | – / `claude-haiku-5-5` | Backup provider |
 | `GROQ_API_KEY`, `GROQ_MODEL` | – / `llama-3.1-8b-instant` | Backup provider |
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | – / `gemini-2.5-flash-lite` | Backup Gemini key (use a different Google project: quota is per project) |
 | `OSRM_URL` | public demo server | Point to your own OSRM for real operations |
 | `RELIEF_AUTOPILOT_MINUTES` | unset (off) | Let the relief agent run on its own every N minutes |
 | `RELIEF_MIN_LEVEL` | `high` | Hazard level that triggers autopilot (`watch`, `high`, `severe`) |
-| `OPS_DB` | `backend/data/ops.sqlite3` | Location of the operations database |
+| `OPS_DB` | `DATA_DIR/ops.sqlite3` | Optional explicit location for the operations database |
+| `ADMIN_TOKEN` | unset | Optional `X-Admin-Token` check on selected grid/relief writes and farm deletion |
+| `RATE_LIMIT_PER_MIN`, `RATE_LIMIT_HEAVY_PER_MIN` | `120`, `20` | In-process per-client rate limits |
+| `TRUST_PROXY` | `0` | Trust `X-Forwarded-For` only behind a trusted reverse proxy |
+| `MAX_REQUEST_BODY_BYTES` | `1048576` | Maximum JSON request body; voice audio retains its route-level cap |
+| `ALLOWED_SUPPLIER_HOSTS` | unset | Optional comma-separated supplier URL hostname allow-list |
+| `GNANI_API_KEY`, `SARVAM_API_KEY` | unset | Optional voice and translation providers |
 | `VITE_API_BASE_URL` | `http://localhost:8000` | Frontend → backend URL |
 
-**Which keys do I need?** Only `MANDI_API_KEY` and `LLM_API_KEY`. Everything else works without a key. Add one backup LLM key if your primary hits quota (HTTP 429): the app then switches provider instead of dropping to the rule-based summary.
+**Which keys do I need?** `LLM_API_KEY` enables AI advisories; `MANDI_API_KEY`, `GNANI_API_KEY`, and `SARVAM_API_KEY` enable their respective optional integrations. If Gemini reaches quota, set `OPENAI_API_KEY` for OpenAI failover. Provider availability and model access depend on each account.
 
 ---
 
@@ -368,7 +386,7 @@ cd backend
 python -m pytest tests -q
 ```
 
-62 tests pass (1 live-Gemini test is skipped unless `CLIMATEGUARD_LIVE_GEMINI_TEST=1`). They cover the risk engines (including the original pinned values), LLM timeouts and failover, graph provider budgets, persistence, field planner, grid planner (heat, battery, water, unknown state), the relief agent (unsafe-route recovery, stock reservation, duplicate prevention, missing setup), validation metrics, and the API endpoints with simulated provider failures.
+The suite covers the risk engines (including the original pinned values), LLM timeouts and failover, graph provider budgets, persistence, field planner, grid planner (heat, battery, water, unknown state), the relief agent, URL security, rate limiting, optional write protection, and API endpoints with simulated provider failures. Live-provider tests are opt-in.
 
 Test fixtures with synthetic numbers exist **only** in `tests/`; the application never uses them.
 
@@ -408,7 +426,9 @@ frontend/
   src/i18n/                 en.json, hi.json, ops.js
   src/api.js, api/insights.js
 edge/edge_agent.py          Gateway agent (stdlib only)
-docker-compose.yml, .env.example
+docker-compose.yml           Development Compose
+docker-compose.prod.yml      Production Compose
+render.yaml, DEPLOY.md
 ```
 
 ---
@@ -424,16 +444,19 @@ docker-compose.yml, .env.example
 * **Grid planner** is a transparent rule-based dispatcher, not a mathematical optimiser, and it has no built-in demand history: you describe loads yourself.
 * **Voice** relies on the browser's speech features; Indian-language voices vary by device. It is not a phone / IVR service.
 * **Interface labels** are English and Hindi only.
-* Verified in development: unit tests, API tests with simulated failures, frontend build and a simulated-browser test of every tab. Calls to the external providers should be tried once on your own network.
+* Verified in development: unit tests, API tests with simulated failures, frontend build and a simulated-browser test of every tab. External provider access and hosted deployment still need to be verified in the target accounts.
 
 ---
 
 ## 14. Security notes
 
-* **There is no authentication or user isolation.** Treat the API and databases as local or trusted-network only. Do not expose it to the public internet as is.
-* The backend fetches supplier **inventory and webhook URLs you enter**. On a public deployment this would allow server-side request forgery; add authentication and a URL allow-list before exposing it.
+* **There is no general authentication or user isolation.** `ADMIN_TOKEN` is optional and only protects selected grid/relief writes and farm deletion; it does not secure every endpoint or provide per-user access control.
+* Supplier inventory and webhook URLs are validated at registration and fetch time; non-public addresses and redirects are blocked, and response size/time are bounded. Set `ALLOWED_SUPPLIER_HOSTS` to narrow outbound destinations. Validation is not DNS pinning and cannot fully eliminate DNS rebinding races.
+* Rate limiting is in-process and per instance. It is not coordinated across replicas and is not a replacement for a WAF, edge limiter, or account-level quotas. `X-Forwarded-For` is ignored unless `TRUST_PROXY=1`; only enable that behind a trusted proxy.
+* Configure exact `CORS_ORIGINS`; wildcard CORS is rejected while credentials are enabled. CORS is not authentication.
+* Persistent storage depends on `DATA_DIR` being mounted to durable storage. Render free instances use ephemeral storage; use a paid disk-backed service for persistent SQLite data.
 * Keep `.env` out of version control and rotate any key that has been shared.
-* LLM keys are sent as headers (`x-goog-api-key`, `x-api-key`), never in URLs or logs.
+* Provider keys are backend-only and must never be copied into Vercel frontend variables. The application logs credential presence only in production, not secret values.
 
 ---
 
