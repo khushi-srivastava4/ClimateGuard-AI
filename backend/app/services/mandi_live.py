@@ -1,12 +1,17 @@
-"""Agmarknet mandi summary for /insights/risk. Fixes ReadTimeout: long read timeout, retries, and a disk cache that is
-served (clearly labelled stale) when the portal is slow. Never invents a price."""
-import json, time
-from app.config import settings
+"""Agmarknet mandi summary for /insights/risk. Never invents a price."""
+import json
+import logging
+import time
 from pathlib import Path
-import httpx
-from .live_data import fetch, SourceError
 
+import httpx
+
+from app.config import settings
+from .live_data import STATUS, SourceError, fetch, validate_mandi_payload
+
+logger = logging.getLogger(__name__)
 URL = "https://api.data.gov.in/resource/" + settings.MANDI_RESOURCE_ID
+STALE_TTL_SECONDS = 30 * 24 * 3600
 CACHE = (
     Path(settings.MANDI_CACHE).expanduser().resolve()
     if settings.MANDI_CACHE
@@ -16,8 +21,14 @@ CACHE = (
 
 def _load():
     try:
-        return json.loads(CACHE.read_text(encoding="utf-8"))
-    except Exception:
+        payload = json.loads(CACHE.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("cache root is not an object")
+        return payload
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as exc:
+        logger.warning("Could not read mandi cache (%s).", type(exc).__name__)
         return {}
 
 
@@ -26,8 +37,8 @@ def _save(key, value):
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         d = _load(); d[key] = {"ts": int(time.time()), "value": value}
         CACHE.write_text(json.dumps(d), encoding="utf-8")
-    except Exception:
-        pass
+    except OSError as exc:
+        logger.warning("Could not save mandi cache (%s).", type(exc).__name__)
 
 
 def summarise(recs, scope, commodity):
@@ -52,7 +63,16 @@ async def get_mandi(state, commodity):
             p = {"api-key": key, "format": "json", "limit": 100, "filters[commodity]": commodity}
             if st:
                 p["filters[state.keyword]"] = st
-            j = await fetch("data.gov.in/agmarknet", URL, p, ttl=3600, retries=2, timeout=httpx.Timeout(75, connect=15))
+            j = await fetch(
+                "data.gov.in/agmarknet",
+                URL,
+                p,
+                ttl=3600,
+                retries=2,
+                timeout=httpx.Timeout(75, connect=15),
+                validator=validate_mandi_payload,
+                stale_if_error=False,
+            )
             out = summarise(j.get("records", []), st or "India (no records for state)", commodity)
             if out:
                 _save(ck, out)
@@ -60,6 +80,21 @@ async def get_mandi(state, commodity):
         raise SourceError("data.gov.in/agmarknet", f"no current mandi records for {commodity}")
     except SourceError as e:
         old = _load().get(ck)
-        if old:
+        timestamp = old.get("ts") if isinstance(old, dict) else None
+        age = (
+            time.time() - timestamp
+            if isinstance(timestamp, (int, float)) and not isinstance(timestamp, bool)
+            else float("inf")
+        )
+        if (
+            isinstance(old, dict)
+            and isinstance(old.get("value"), dict)
+            and 0 <= age <= STALE_TTL_SECONDS
+        ):
+            STATUS["data.gov.in/agmarknet"] = {
+                "state": "stale",
+                "error": e.msg,
+                "ts": int(timestamp),
+            }
             return {**old["value"], "stale": True, "cached_at": old["ts"], "stale_reason": e.msg}
         raise

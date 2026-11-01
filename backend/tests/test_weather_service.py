@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date, timedelta
 from unittest.mock import patch
 import httpx, pytest
 from app.services import weather_service as W
@@ -10,7 +11,21 @@ class FakeCache(dict):
     def delete(self, k): self.pop(k, None)
 
 
-def payload(): return {"latitude": 27.18, "longitude": 78.0, "timezone": "Asia/Kolkata", "daily": {"time": ["2026-11-01"], "temperature_2m_max": [31.0], "temperature_2m_min": [18.0], "precipitation_probability_max": [10], "precipitation_sum": [0.0], "wind_speed_10m_max": [12.0]}}
+def payload():
+    dates = [(date(2026, 11, 1) + timedelta(days=index)).isoformat() for index in range(14)]
+    return {
+        "latitude": 27.18,
+        "longitude": 78.0,
+        "timezone": "Asia/Kolkata",
+        "daily": {
+            "time": dates,
+            "temperature_2m_max": [31.0] * len(dates),
+            "temperature_2m_min": [18.0] * len(dates),
+            "precipitation_probability_max": [10] * len(dates),
+            "precipitation_sum": [0.0] * len(dates),
+            "wind_speed_10m_max": [12.0] * len(dates),
+        },
+    }
 
 
 def client_returning(responses, calls):
@@ -60,3 +75,41 @@ def test_no_cached_copy_means_the_error_is_raised_not_invented():
     with patch.object(W.httpx, "AsyncClient", client_returning([httpx.Response(503)] * 2, [])):
         with pytest.raises(httpx.HTTPStatusError):
             asyncio.run(W.get_weather(5.0, 5.0))
+
+
+def test_short_retry_after_is_honoured_then_forecast_retried():
+    calls = []
+    responses = [
+        httpx.Response(429, headers={"retry-after": "0"}),
+        httpx.Response(200, json=payload()),
+    ]
+    with patch.object(W.httpx, "AsyncClient", client_returning(responses, calls)):
+        weather = asyncio.run(W.get_weather(27.18, 78.0))
+    assert weather.daily and len(calls) == 2
+
+
+def test_simultaneous_forecast_requests_for_same_location_are_coalesced():
+    calls = []
+    with patch.object(
+        W.httpx,
+        "AsyncClient",
+        client_returning([httpx.Response(200, json=payload())], calls),
+    ):
+        async def run():
+            return await asyncio.gather(W.get_weather(27.18, 78.0), W.get_weather(27.18, 78.0))
+
+        first, second = asyncio.run(run())
+    assert first == second
+    assert len(calls) == 1
+
+
+def test_invalid_weather_json_is_rejected_without_caching():
+    calls = []
+    with patch.object(
+        W.httpx,
+        "AsyncClient",
+        client_returning([httpx.Response(200, text="not JSON")], calls),
+    ):
+        with pytest.raises(ValueError, match="invalid forecast JSON"):
+            asyncio.run(W.get_weather(27.18, 78.0))
+    assert len(calls) == 1

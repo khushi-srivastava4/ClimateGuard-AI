@@ -121,3 +121,38 @@ def test_insights_endpoint_end_to_end_with_partial_failures(monkeypatch):
     j = r.json()
     assert j["risks"]["heat"]["score"] >= 75 and j["actions_v2"]
     assert any("flood unavailable" in w or "soil unavailable" in w for w in j["warnings"]) and j["market"] is None
+
+
+def test_insights_assessment_stops_when_forecast_is_unavailable(monkeypatch):
+    from fastapi import HTTPException
+    from app.routers import insights as I
+    from app.services import live_data as L, soil_live
+
+    async def unavailable(*args, **kwargs):
+        raise L.SourceError("open-meteo/forecast", "HTTP 429: rate limited")
+
+    monkeypatch.setattr(L, "forecast", unavailable)
+    monkeypatch.setattr(L, "flood", unavailable)
+    monkeypatch.setattr(L, "climatology", unavailable)
+    monkeypatch.setattr(L, "enso", unavailable)
+    monkeypatch.setattr(soil_live, "get_soil", unavailable)
+
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(I.build(27.1, 78.0, "wheat"))
+    assert error.value.status_code == 503
+    assert "no assessment can be made" in error.value.detail.lower()
+
+
+def test_climate_assessment_rejects_missing_required_forecast_values():
+    from app.services import climate_risk
+
+    forecast = make_fc()
+    forecast["daily"]["temperature_2m_max"][30] = None
+    with pytest.raises(ValueError, match="temperature_2m_max"):
+        climate_risk.assess(forecast, None, CLIM, SOIL, CROPS["wheat"])
+
+    short_forecast = make_fc()
+    for series in short_forecast["daily"].values():
+        del series[43:]
+    with pytest.raises(ValueError, match="too short"):
+        climate_risk.assess(short_forecast, None, CLIM, SOIL, CROPS["wheat"])

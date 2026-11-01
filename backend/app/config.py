@@ -52,7 +52,9 @@ class Settings:
         self.TRUST_PROXY = os.getenv("TRUST_PROXY", "0").strip() == "1"
         self.MAX_REQUEST_BODY_BYTES = int(os.getenv("MAX_REQUEST_BODY_BYTES", str(1024 * 1024)))
         self.LLM_PROVIDER = os.getenv("LLM_PROVIDER", "GEMINI").upper()
-        self.LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+                # LLM_API_KEY wins; otherwise use the chosen provider's own variable, so GEMINI_API_KEY alone is enough
+        provider_key_env = {"GEMINI": "GEMINI_API_KEY", "OPENAI": "OPENAI_API_KEY", "ANTHROPIC": "ANTHROPIC_API_KEY", "GROQ": "GROQ_API_KEY"}.get(self.LLM_PROVIDER)
+        self.LLM_API_KEY = os.getenv("LLM_API_KEY", "").strip() or (os.getenv(provider_key_env, "").strip() if provider_key_env else "")
         default_model = {
             "OPENAI": "gpt-4o-mini",
             "ANTHROPIC": "claude-3-haiku-20240307",

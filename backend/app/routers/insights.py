@@ -29,12 +29,17 @@ async def build(lat, lon, crop_id, stage=None, soil_type=None, state=None, with_
             d[k] = None
     if d["fc"] is None:
         raise HTTPException(503, "Forecast source (Open-Meteo) is unavailable, so no assessment can be made. " + "; ".join(warnings))
+    forecast_status = L.STATUS.get("open-meteo/forecast", {})
+    if forecast_status.get("state") == "stale":
+        warnings.append(f"fc using stale cached forecast: {forecast_status.get('error', 'live request failed')}")
     a = R.assess(d["fc"], d["flood"], d["clim"], d["soil"], crop, stage)
     a["actions_v2"] = action_planner.plan_actions(a, crop_id, stage)
     mandi = None
     if with_market and state:
         try:
             mandi = await mandi_live.get_mandi(state, crop["mandi"])
+            if mandi.get("stale"):
+                warnings.append(f"market data is stale: {mandi.get('stale_reason', 'live request failed')}")
         except SourceError as e:
             warnings.append(f"market unavailable: {e.msg}")
     elif with_market:

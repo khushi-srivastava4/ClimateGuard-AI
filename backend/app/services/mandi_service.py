@@ -15,11 +15,10 @@ from datetime import datetime, timezone
 from statistics import median
 from typing import Any, Dict, List, Optional
 
-import httpx
-
 from app.config import settings
 from app.models.mandi import MandiData, MandiPricePoint
 from app.services.crop_profiles import CROPS
+from app.services.live_data import SourceError, fetch, validate_mandi_payload
 from app.utils.cache import cache
 from app.utils.http import slow_provider_timeout
 
@@ -71,12 +70,17 @@ async def _fetch(commodity: str, state: Optional[str], district: Optional[str]) 
         params["filters[state.keyword]"] = state
     if district:
         params["filters[district]"] = district
-    async with httpx.AsyncClient(timeout=slow_provider_timeout()) as client:
-        response = await client.get(f"{API_URL}{settings.MANDI_RESOURCE_ID}", params=params)
-        response.raise_for_status()
-        payload = response.json()
-    records = payload.get("records") if isinstance(payload, dict) else None
-    return records if isinstance(records, list) else []
+    payload = await fetch(
+        "data.gov.in/agmarknet",
+        f"{API_URL}{settings.MANDI_RESOURCE_ID}",
+        params,
+        ttl=settings.CACHE_TTL,
+        retries=2,
+        timeout=slow_provider_timeout(),
+        validator=validate_mandi_payload,
+        stale_if_error=False,
+    )
+    return payload["records"]
 
 
 async def get_mandi(
@@ -117,11 +121,8 @@ async def get_mandi(
                 cache.set(stale_key, dump, ttl_seconds=STALE_TTL_SECONDS)
                 return data
         error = f"No current mandi prices were published for {commodity}."
-    except httpx.TimeoutException:
-        error = "data.gov.in did not answer in time (ReadTimeout)."
-    except httpx.HTTPStatusError as exc:
-        status = exc.response.status_code
-        error = "Mandi API key was rejected (HTTP %s); check MANDI_API_KEY." % status if status in (401, 403) else f"data.gov.in returned HTTP {status}."
+    except SourceError as exc:
+        error = exc.msg
     except Exception as exc:
         logger.warning("Mandi lookup failed (%s).", type(exc).__name__)
         error = f"Mandi request failed ({type(exc).__name__})."

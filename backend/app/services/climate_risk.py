@@ -1,5 +1,6 @@
 """Crop-aware climate-risk engine for /insights/risk (soil moisture, normals, river discharge). Pure functions, no I/O, unit-tested.
 Scores are 0-100 per hazard, each with traceable evidence tagged to a source id (S1..S5)."""
+import math
 from statistics import median
 
 from .crop_profiles import CROPS  # noqa: F401
@@ -55,9 +56,21 @@ def windows(flags, dates, minlen=2):
 def assess(fc, flood, clim, soil, crop, stage=None):
     d, P = fc["daily"], PAST
     t = d["time"]
-    if len(t) < P + 8:
+    if not isinstance(t, list) or len(t) < P + 14:
         raise ValueError("forecast too short to assess")
     tmax, pr, et0 = d["temperature_2m_max"], d["precipitation_sum"], d["et0_fao_evapotranspiration"]
+    for name, values in (
+        ("temperature_2m_max", tmax),
+        ("precipitation_sum", pr),
+        ("et0_fao_evapotranspiration", et0),
+    ):
+        if not isinstance(values, list) or len(values) < P + 14 or any(
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            for value in values[: P + 14]
+        ):
+            raise ValueError(f"forecast has incomplete or invalid {name} inputs")
     pprob = d.get("precipitation_probability_max") or [None] * len(t)
     h = fc.get("hourly", {})
     sm0 = daily_means(h.get("time", []), h.get("soil_moisture_0_to_7cm", []))

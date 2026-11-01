@@ -78,6 +78,8 @@ The risk request calls upstream data providers. For voice, test recording and pl
 - Local production Compose stores these files in the named `backend-data` volume. Preserve that volume when updating containers.
 - SQLite is suitable for the single-instance deployment target here. Do not scale this service to multiple instances/workers without moving state to shared managed storage and coordinating rate limits.
 - The project uses live external providers. Cold start, upstream quotas, provider outages, and public OSRM limits can delay or degrade responses.
+- Weather and mandi requests cache successful results by query and coalesce concurrent identical calls. Transient provider errors use bounded retries; HTTP 429 responses honor `Retry-After`, while permanent client errors are not retried. Open-Meteo forecast inputs are validated before risk assessment; if required forecast values are missing, the risk endpoint returns an unavailable response instead of scoring fabricated data.
+- The in-memory provider cache is per backend process and is lost on restart. The agent's SQLite weather/mandi cache uses `DATA_DIR`; the standalone mandi-summary cache defaults there unless `MANDI_CACHE` overrides it. Keep the Render persistent disk attached to preserve these fallback results.
 
 ## Security boundaries
 
