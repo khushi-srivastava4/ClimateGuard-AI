@@ -61,7 +61,7 @@ async function voiceRequest(path, options = {}, signal, timeoutMs = 90000) {
   if (signal?.aborted) controller.abort();
 
   try {
-    const response = await fetch(BASE + path, { ...options, signal: controller.signal });
+    const response = await fetch(API_BASE_URL + path, { ...options, signal: controller.signal });
     if (!response.ok) {
       let payload = {};
       try { payload = await response.json(); } catch { /* non-JSON error body */ }
